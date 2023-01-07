@@ -1,12 +1,10 @@
 package fichat
 
 import (
-	"catrot-chat/models"
 	requestmodel "catrot-chat/models/request_models"
+	db "catrot-chat/services/mysql"
 	"context"
 	"sync"
-
-	"github.com/gin-gonic/gin"
 )
 
 type messageData struct {
@@ -17,16 +15,6 @@ type messageData struct {
 	ctx         context.Context
 }
 
-func newMessageDataForImage(c *gin.Context, reqData *requestmodel.ImageSendRq, cd *models.DefaultData) (*messageData, error) {
-	var data messageData
-
-	data = messageData{
-		msgType:     "img",
-		reqData:     &reqData.MessageSendRq,
-		ctx:         c.Request.Context(),
-	}
-	return &data, nil
-}
 
 func newMessageDateForText(ctx context.Context, msg string, msgType any, reqData *requestmodel.MessageSendRq) *messageData {
 	return &messageData{
@@ -51,24 +39,28 @@ func (m *messageData) uploadToS3(key string, body *[]byte, contentType string, w
 
 // 텍스트를 msg_queue에 업로드 한다.
 func (m *messageData) textInsertToMsgQueue() {
-	// res, err := db.MasterBun.ExecContext(m.ctx, `
-	// 	INSERT INTO catrot-chat.msg_queue
-	// 	(msg, send_fid, mrid, lc, cc, data)
-	// 	VALUES (?, ?, ?, ?, ?, ?)
-	// `, m.textMsg, m.reqData.Fid, m.reqData.MRID, m.reqData.LC, m.reqData.CC, m.msgType)
+	res, err := db.MasterBun.ExecContext(m.ctx, `
+		INSERT INTO catrot_chat.messages
+		(msg, send_uid, room_id, messageType)
+		VALUES (?, ?, ?, ?)
+	`, m.textMsg, m.reqData.UID, m.reqData.MRID, m.msgType)
 
-	// if err != nil {
-	// 	m.insertedId = 0
-	// } else {
-	// 	id, _ := res.LastInsertId()
-	// 	m.insertedId = id
-	// }
+	if err != nil {
+		m.insertedId = 0
+	} else {
+		id, _ := res.LastInsertId()
+		m.insertedId = id
+	}
 
-	// if m.insertedId > 0 {
-	// }
-}
+	if m.insertedId > 0 {
+		_, err := db.MasterBun.ExecContext(m.ctx, `
+			INSERT INTO catrot_chat.unread_messages
+			(room_id, uid, last_mid)
+			VALUES (?, ?, ?)
+		`, m.reqData.MRID, m.reqData.UID, m.insertedId)
 
-
-func (m *messageData) getPreviousMsg() string {
-	return ""
+		if(err != nil){
+			print(err)
+		}
+	}
 }

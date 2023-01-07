@@ -26,7 +26,7 @@ import (
 func SetRoutes(r *gin.Engine) {
 
 	// 라우트 설정
-	setChatRoutes(r.Group("/fi_chat"))
+	setChatRoutes(r.Group("/chat"))
 
 	// notification api 와 스웨거 설정
 	r.GET("/", func(c *gin.Context) {

@@ -2,6 +2,7 @@ package fichat
 
 import (
 	requestmodel "catrot-chat/models/request_models"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -67,21 +68,36 @@ func UnreadMsgList(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, map[string]interface{}{
-		"msg_list": []interface{}{},
-	})
+	var unreadMsgList []map[string]interface{} = getUnreadMsgList(c.Request.Context(), data)
+
+	go deleteMsgUnreadLog(c.Request.Context(), data.MRID, data.UID)
+
+
+	if len(unreadMsgList) > 0 {
+		unreadMsgRoomJson, _ := json.Marshal(map[string]interface{}{
+			"msg_list": unreadMsgList,
+		})
+		var unreadMsgRs unreadMsgListRs
+		json.Unmarshal(unreadMsgRoomJson, &unreadMsgRs)
+		c.JSON(http.StatusOK, unreadMsgRs)
+
+	} else {
+		c.JSON(http.StatusOK, map[string]interface{}{
+			"msg_list": []interface{}{},
+		})
+	}
 }
 
 // @Summary UnreadMsgRoomList
 // @Schemes
-// @Description `내 FI 안읽은 메시지 대화방 목록 정보 가져오기`
+// @Description `내 안읽은 메시지 대화방 목록 정보 가져오기`
 // @Param			param		body		requestmodel.UnreadMsgRoomModel	true		"data"
-// @Tags fi_chat
+// @Tags chat
 // @accept json
 // @Produce json
 // @Success 200 {object} []unreadMsgRoomListRs
 // @Failure 422 {object} emptyResp
-// @Router /fi_chat/unread_msg_room_list [post]
+// @Router /chat/unread_msg_room_list [post]
 func UnreadMsgRoomList(c *gin.Context) {
 	var data requestmodel.UnreadMsgRoomModel
 
@@ -93,5 +109,76 @@ func UnreadMsgRoomList(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, []unreadMsgRoomListRs{})
+	myUnreadMsgRoomList := getUnreadMsgRoomList(c.Request.Context(), data.UID)
+
+	var finalResult = []map[string]interface{}{}
+	ch := make(chan map[string]interface{}, len(myUnreadMsgRoomList))
+
+	for i := 0; i < len(myUnreadMsgRoomList); i++ {
+		finalResult = append(finalResult, <-ch)
+	}
+
+	unreadMsgRoomJson, _ := json.Marshal(finalResult)
+	var unreadMsgRoomRs []unreadMsgRoomListRs
+	json.Unmarshal(unreadMsgRoomJson, &unreadMsgRoomRs)
+	c.JSON(http.StatusOK, unreadMsgRoomRs)
+}
+
+
+// @Summary ChangeRoomName
+// @Schemes
+// @Description `채팅방 이름 변경`
+// @Param			param		body		requestmodel.ChangeRoomNameModel	true		"data"
+// @Tags chat
+// @accept json
+// @Produce json
+// @Success 200 {object} sendMessageResp200
+// @Failure 422 {object} emptyResp
+// @Router /chat/change_room_name [post]
+func ChangeRoomName(c *gin.Context) {
+	var data requestmodel.ChangeRoomNameModel
+
+	if err := c.ShouldBind(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("(%v)", err),
+		})
+		c.Abort()
+		return
+	}
+
+	chageChatRoomName(c.Request.Context(), data.RoomName, data.MRID, data.UID);
+
+	c.JSON(http.StatusOK, gin.H{"roomName": data.RoomName,})
+}
+
+
+// @Summary CreateMsgRoom
+// @Schemes
+// @Description `채팅방 생성`
+// @Param			param		body		requestmodel.CreateMsgRoomModel	true		"data"
+// @Tags chat
+// @accept json
+// @Produce json
+// @Success 200 {object} sendMessageResp200
+// @Failure 422 {object} emptyResp
+// @Router /chat/create_msg_room [post]
+func CreateMsgRoom(c *gin.Context) {
+	var data requestmodel.CreateMsgRoomModel
+
+	if err := c.ShouldBind(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("(%v)", err),
+		})
+		c.Abort()
+		return
+	}
+
+	roomId := createChatRoom(c, data.UID, data.CounterUid, data.RoomType)
+
+	if(roomId>0){
+		c.JSON(http.StatusOK, gin.H{"roomId":  roomId})
+
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": 500})
+	}
 }
