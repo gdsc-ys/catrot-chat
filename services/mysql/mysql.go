@@ -31,7 +31,7 @@ func SetDBConnection(wg *sync.WaitGroup) {
 	var mySqlConnection *dbConnectionPool
 	if apiEnv == "production" {
 		log.Println("프로덕션 디비 연결...")
-		// mySqlConnection = setProductionDBConnection()
+		mySqlConnection = setProductionDBConnection()
 	} else {
 		log.Println("개발 디비 연결...")
 		mySqlConnection = setDevDBConnection()
@@ -82,18 +82,18 @@ func setDevDBConnection() *dbConnectionPool {
 func setProductionDBConnection() *dbConnectionPool {
 
 	configWrite := mysql.Config{
-		User:                 "real db user",
-		Passwd:               "real db pw",
-		Net:                  "tcp",
-		Addr:                 "production db url:port",
+		User:                 os.Getenv("DB_USER"),
+		Passwd:               os.Getenv("DB_PW"),
+		Net:                  os.Getenv("DB_NET"),
+		Addr:                 os.Getenv("DB_ADDR"),
 		AllowNativePasswords: true,
 	}
 
 	configRead := mysql.Config{
-		User: 				  "real db user",
-		Passwd:               "real db pw",
-		Net:                  "tcp",
-		Addr:                 "production db url:port",
+		User: 				  os.Getenv("DB_USER"),
+		Passwd:               os.Getenv("DB_PW"),
+		Net:                  os.Getenv("DB_NET"),
+		Addr:                 os.Getenv("DB_ADDR"),
 		AllowNativePasswords: true,
 	}
 
